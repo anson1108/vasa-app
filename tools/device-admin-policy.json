@@ -1,0 +1,9 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": ["dynamodb:PutItem", "dynamodb:UpdateItem"],
+    "Resource": "arn:aws:dynamodb:ap-southeast-5:REPLACE_ACCOUNT_ID:table/REPLACE_REGISTRY_TABLE",
+    "Condition": { "ForAllValues:StringLike": { "dynamodb:LeadingKeys": ["DEVICE#*"] } }
+  }]
+}

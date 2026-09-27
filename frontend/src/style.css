@@ -1,0 +1,15 @@
+:root{--el-color-primary:#3379b9;--el-border-radius-base:9px;--el-font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+*{box-sizing:border-box}body{margin:0;background:#f4f6fa;color:#192c41;font-family:var(--el-font-family)}
+main{max-width:520px;margin:auto;padding:calc(24px + env(safe-area-inset-top)) 24px calc(28px + env(safe-area-inset-bottom));min-height:100vh}
+header{display:flex;align-items:center;justify-content:space-between}.brand{font-size:20px;font-weight:800;letter-spacing:1px}.brand span{font-size:10px;color:#718091;letter-spacing:2px}
+.demo{margin-top:22px}.demo .el-alert__title{font-size:12px}.control{text-align:center;padding:38px 8px 12px}.eyebrow{color:#728498;font-size:10px;letter-spacing:3px;font-weight:700}
+h1{font-size:32px;letter-spacing:-1px;margin:13px 0}.subtitle{font-size:14px;color:#748394;margin-bottom:26px}
+.power-wrap{margin:30px auto 18px}.power-switch{--el-switch-on-color:#27865f;--el-switch-off-color:#bac7d6;height:76px}
+.power-switch .el-switch__core{height:76px;border-radius:40px}.power-switch .el-switch__action{width:64px;height:64px;left:5px;box-shadow:0 3px 10px #23384926}
+.power-switch.is-checked .el-switch__core .el-switch__action{left:calc(100% - 69px)}.power-switch .el-switch__action .el-icon{font-size:22px}
+.hint{font-size:13px;color:#73849a;min-height:20px}.refresh{margin:5px 0 8px}.updated{font-size:11px;color:#8c98a6;margin:0 0 23px}
+.instance,.setup{border-radius:16px}.instance .el-card__body{padding:18px 20px}.instance .el-descriptions__body{background:transparent}.instance .el-descriptions__label{color:#7b8999}
+.instance .el-descriptions__cell{overflow-wrap:anywhere}.instance code{font-size:11px}.footnote{font-size:11px;text-align:center;color:#8190a1;margin-top:18px}
+.error{text-align:left;margin-top:18px}.error .el-alert__title{line-height:1.6}.setup{margin-top:25px}.setup p{font-size:12px;color:#708094;line-height:1.7}
+.setup .el-form-item{margin:18px 0}.setup .el-input__inner,.setup .el-textarea__inner{font-size:12px}.setup .el-button{min-height:42px}
+@media(max-width:360px){main{padding-left:16px;padding-right:16px}.instance .el-card__body{padding:16px}}

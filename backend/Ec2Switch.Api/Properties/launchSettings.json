@@ -1,0 +1,15 @@
+{
+  "profiles": {
+    "Ec2Switch.Api": {
+      "commandName": "Project",
+      "launchBrowser": false,
+      "applicationUrl": "http://localhost:5080",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "TABLE_NAME": "REPLACE_WITH_STACK_OUTPUT",
+        "AUDIENCE": "REPLACE_WITH_API_BASE_URL",
+        "INSTANCE_ID": "i-056494d14ab6b3dd0"
+      }
+    }
+  }
+}

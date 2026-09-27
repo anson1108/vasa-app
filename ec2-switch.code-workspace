@@ -1,0 +1,5 @@
+{
+  "folders": [{ "path": "frontend" }, { "path": "." }],
+  "extensions": { "recommendations": ["Vue.volar", "ms-dotnettools.csdevkit"] },
+  "settings": { "files.exclude": { "**/node_modules": true, "**/bin": true, "**/obj": true } }
+}

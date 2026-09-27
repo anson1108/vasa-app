@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../Ec2Switch.Api/Ec2Switch.Api.csproj" /><ProjectReference Include="../Ec2Switch.DnsWorker/Ec2Switch.DnsWorker.csproj" /></ItemGroup>
+</Project>

@@ -1,0 +1,252 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Personal EC2 switch with registered device signatures
+Parameters:
+  InstanceId:
+    Type: String
+    Default: i-056494d14ab6b3dd0
+    AllowedPattern: '^i-[a-f0-9]{17}$'
+  EnableDdns:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+  DnsZone:
+    Type: String
+    Default: contoso1.asia
+  DnsRr:
+    Type: String
+    Default: my
+  DnsRecordId:
+    Type: String
+    Default: '2103041539206785024'
+    Description: Existing default-line A record ID from Alibaba Cloud DNS
+  DnsSecretArn:
+    Type: String
+    Default: ''
+    AllowedPattern: '^$|^arn:aws:secretsmanager:ap-southeast-5:[0-9]{12}:secret:.+$'
+    Description: Secrets Manager ARN containing AccessKeyId and AccessKeySecret; never enter the secret itself
+Conditions:
+  DdnsEnabled: !Equals [!Ref EnableDdns, 'true']
+  HasDnsSecret: !Not [!Equals [!Ref DnsSecretArn, '']]
+Rules:
+  RequireDdnsConfiguration:
+    RuleCondition: !Equals [!Ref EnableDdns, 'true']
+    Assertions:
+      - Assert: !Not [!Equals [!Ref DnsRecordId, '']]
+        AssertDescription: DnsRecordId is required when DDNS is enabled
+      - Assert: !Not [!Equals [!Ref DnsSecretArn, '']]
+        AssertDescription: DnsSecretArn is required when DDNS is enabled
+Resources:
+  Registry:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expires
+        Enabled: true
+      SSESpecification:
+        SSEEnabled: true
+  Api:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub '${AWS::StackName}-api'
+      ProtocolType: HTTP
+  ApiIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref Api
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt Control.Arn
+      PayloadFormatVersion: '2.0'
+      TimeoutInMillis: 20000
+  ControlRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref Api
+      RouteKey: 'POST /control'
+      AuthorizationType: NONE
+      Target: !Sub 'integrations/${ApiIntegration}'
+  ApiStage:
+    Type: AWS::ApiGatewayV2::Stage
+    DependsOn: ControlRoute
+    Properties:
+      ApiId: !Ref Api
+      StageName: $default
+      AutoDeploy: true
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 5
+        ThrottlingRateLimit: 2
+  ApiInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref Control
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${Api}/*/POST/control'
+  Control:
+    Type: AWS::Serverless::Function
+    DependsOn: FunctionLog
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-control'
+      CodeUri: backend/Ec2Switch.Api/
+      Handler: Ec2Switch.Api
+      Runtime: dotnet8
+      Architectures: [arm64]
+      MemorySize: 512
+      Timeout: 15
+      Role: !GetAtt ControlRole.Arn
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref Registry
+          INSTANCE_ID: !Ref InstanceId
+          AUDIENCE: !Sub 'https://${Api}.execute-api.${AWS::Region}.${AWS::URLSuffix}'
+          DDNS_ENABLED: !Ref EnableDdns
+          DNS_FQDN: !Sub '${DnsRr}.${DnsZone}'
+  ControlRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: OneInstanceControl
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Action: [logs:CreateLogStream, logs:PutLogEvents]
+              Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::StackName}-control:*'
+            - Effect: Allow
+              Action: [ec2:DescribeInstances]
+              Resource: '*'
+              Condition:
+                StringEquals:
+                  aws:RequestedRegion: !Ref AWS::Region
+            - Effect: Allow
+              Action: [ec2:StartInstances, ec2:StopInstances]
+              Resource: !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/${InstanceId}'
+            - Effect: Allow
+              Action: [dynamodb:GetItem, dynamodb:ConditionCheckItem]
+              Resource: !GetAtt Registry.Arn
+              Condition:
+                ForAllValues:StringLike:
+                  dynamodb:LeadingKeys: ['DEVICE#*']
+            - Effect: Allow
+              Action: [dynamodb:GetItem]
+              Resource: !GetAtt Registry.Arn
+              Condition:
+                ForAllValues:StringEquals:
+                  dynamodb:LeadingKeys: [!Sub 'SYNC#${InstanceId}']
+            - Effect: Allow
+              Action: [dynamodb:PutItem]
+              Resource: !GetAtt Registry.Arn
+              Condition:
+                ForAllValues:StringLike:
+                  dynamodb:LeadingKeys: ['NONCE#*']
+  FunctionLog:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-control'
+      RetentionInDays: 14
+  DnsWorkerLog:
+    Type: AWS::Logs::LogGroup
+    Condition: DdnsEnabled
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-ddns'
+      RetentionInDays: 14
+  DnsWorkerRole:
+    Type: AWS::IAM::Role
+    Condition: DdnsEnabled
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: lambda.amazonaws.com}
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: SingleDnsSync
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::StackName}-ddns:*'
+              - Effect: Allow
+                Action: [ec2:DescribeInstances]
+                Resource: '*'
+                Condition:
+                  StringEquals: {aws:RequestedRegion: ap-southeast-5}
+              - !If
+                - HasDnsSecret
+                - Effect: Allow
+                  Action: [secretsmanager:GetSecretValue]
+                  Resource: !Ref DnsSecretArn
+                - !Ref AWS::NoValue
+              - Effect: Allow
+                Action: [dynamodb:PutItem]
+                Resource: !GetAtt Registry.Arn
+                Condition:
+                  ForAllValues:StringEquals:
+                    dynamodb:LeadingKeys: [!Sub 'SYNC#${InstanceId}']
+  DnsWorker:
+    Type: AWS::Serverless::Function
+    Condition: DdnsEnabled
+    DependsOn: DnsWorkerLog
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-ddns'
+      CodeUri: backend/Ec2Switch.DnsWorker/
+      Handler: Ec2Switch.DnsWorker::Ec2Switch.DnsWorker.Function::Handler
+      Runtime: dotnet8
+      Architectures: [arm64]
+      MemorySize: 512
+      Timeout: 55
+      ReservedConcurrentExecutions: 1
+      Role: !GetAtt DnsWorkerRole.Arn
+      EventInvokeConfig:
+        MaximumRetryAttempts: 0
+        MaximumEventAgeInSeconds: 60
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref Registry
+          INSTANCE_ID: !Ref InstanceId
+          DNS_SECRET_ARN: !Ref DnsSecretArn
+          DNS_RECORD_ID: !Ref DnsRecordId
+          DNS_ZONE: !Ref DnsZone
+          DNS_RR: !Ref DnsRr
+      Events:
+        InstanceChange:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source: [aws.ec2]
+              detail-type: [EC2 Instance State-change Notification]
+              detail:
+                instance-id: [!Ref InstanceId]
+                state: [running]
+        Reconcile:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 minute)
+            Enabled: true
+Outputs:
+  ApiBaseUrl:
+    Value: !Sub 'https://${Api}.execute-api.${AWS::Region}.${AWS::URLSuffix}'
+  RegistryTable:
+    Value: !Ref Registry
+  Instance:
+    Value: !Ref InstanceId
+  DnsDomain:
+    Value: !Sub '${DnsRr}.${DnsZone}'

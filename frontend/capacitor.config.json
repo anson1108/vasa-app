@@ -1,0 +1,7 @@
+{
+  "appId": "net.personal.ec2switch",
+  "appName": "EC2 开关",
+  "webDir": "dist",
+  "android": { "allowMixedContent": false, "webContentsDebuggingEnabled": false },
+  "server": { "androidScheme": "https" }
+}

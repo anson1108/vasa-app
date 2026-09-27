@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">EC2 开关</string>
+    <string name="title_activity_main">EC2 开关</string>
+    <string name="package_name">net.personal.ec2switch</string>
+    <string name="custom_url_scheme">net.personal.ec2switch</string>
+</resources>

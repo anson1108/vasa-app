@@ -1,0 +1,5 @@
+.dns{margin-top:12px}.dns-feedback{margin-top:14px}
+.dns-loading{display:flex;align-items:flex-start;gap:12px;border-radius:10px;padding:16px;background:var(--el-color-primary-light-9);color:var(--el-color-primary)}
+.dns-loading .el-icon{flex-shrink:0;margin-top:2px}.dns-loading strong{font-size:14px;line-height:24px}.dns-loading p{font-size:12px;color:var(--el-text-color-secondary);line-height:1.7;margin:5px 0 0}
+.dns-feedback .el-alert{align-items:flex-start;border-radius:10px}.dns-feedback .el-alert__icon{margin-top:3px}.dns-feedback .el-alert__description{line-height:1.7}
+@media(prefers-reduced-motion:reduce){.dns-loading .is-loading{animation:none}}

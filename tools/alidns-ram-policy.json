@@ -1,0 +1,18 @@
+{
+  "Version": "1",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["alidns:DescribeDomainRecordInfo"],
+      "Resource": ["acs:alidns::REPLACE_ALIBABA_ACCOUNT_ID:domain/contoso1.asia"]
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["alidns:UpdateDomainRecord"],
+      "Resource": [
+        "acs:alidns::REPLACE_ALIBABA_ACCOUNT_ID:domain/contoso1.asia",
+        "acs:alidns::REPLACE_ALIBABA_ACCOUNT_ID:domain/REPLACE_THIS_ZONES_DOMAIN_ID"
+      ]
+    }
+  ]
+}
