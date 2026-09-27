@@ -1,0 +1,35 @@
+version: 0.2
+env:
+  variables:
+    SAM_CLI_TELEMETRY: '0'
+phases:
+  install:
+    runtime-versions:
+      dotnet: 8.0
+      nodejs: 22
+      python: 3.12
+    commands:
+      - python3 -m venv /tmp/ec2-switch-sam
+      - /tmp/ec2-switch-sam/bin/pip install aws-sam-cli==1.166.2
+      - export PATH="/tmp/ec2-switch-sam/bin:$PATH"
+  pre_build:
+    commands:
+      - npm --prefix frontend ci
+      - npm --prefix frontend test
+      - python3 ci/test_deploy.py
+      - dotnet run --project backend/Ec2Switch.Tests/Ec2Switch.Tests.csproj --configuration Release
+      - sam validate --lint --template-file template.yaml --region ap-southeast-5
+  build:
+    commands:
+      - npm --prefix frontend run build
+      - sam build --template-file template.yaml
+      - mkdir -p bundle
+      - cp -a .aws-sam/build bundle/backend
+      - cp -a frontend/dist bundle/vue-preview
+      - printf '%s\n' "$CODEBUILD_RESOLVED_SOURCE_VERSION" > bundle/commit.txt
+artifacts:
+  files:
+    - bundle/**/*
+    - ci/deploy.yml
+    - ci/deploy.py
+

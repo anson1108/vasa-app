@@ -1,0 +1,956 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "GitHub main -> tests -> manual approval -> SAM deployment in Malaysia",
+  "Parameters": {
+    "ConnectionArn": {
+      "Type": "String",
+      "AllowedPattern": "^arn:aws:(codeconnections|codestar-connections):ap-southeast-1:492213594399:connection/.+$"
+    },
+    "DnsSecretArn": {
+      "Type": "String",
+      "Default": "arn:aws:secretsmanager:ap-southeast-5:492213594399:secret:aliyundns-VvNFXf",
+      "AllowedPattern": "^arn:aws:secretsmanager:ap-southeast-5:492213594399:secret:.+$"
+    }
+  },
+  "Resources": {
+    "ArtifactBucket": {
+      "Type": "AWS::S3::Bucket",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "VersioningConfiguration": {
+          "Status": "Enabled"
+        },
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+              }
+            }
+          ]
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "BlockPublicPolicy": true,
+          "IgnorePublicAcls": true,
+          "RestrictPublicBuckets": true
+        }
+      }
+    },
+    "ArtifactBucketPolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": {
+          "Ref": "ArtifactBucket"
+        },
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "s3:*",
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "ArtifactBucket",
+                    "Arn"
+                  ]
+                },
+                {
+                  "Fn::Sub": "${ArtifactBucket.Arn}/*"
+                }
+              ],
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "BuildLog": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/codebuild/vasa-app-build",
+        "RetentionInDays": 14
+      }
+    },
+    "BuildRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "codebuild.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole",
+              "Condition": {
+                "StringEquals": {
+                  "aws:SourceAccount": {
+                    "Ref": "AWS::AccountId"
+                  }
+                },
+                "ArnEquals": {
+                  "aws:SourceArn": {
+                    "Fn::Sub": "arn:${AWS::Partition}:codebuild:${AWS::Region}:${AWS::AccountId}:project/vasa-app-build"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "BuildArtifactsAndLogs",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "s3:GetObject",
+                    "s3:GetObjectVersion",
+                    "s3:PutObject",
+                    "s3:GetBucketLocation",
+                    "s3:GetBucketVersioning",
+                    "s3:GetBucketAcl",
+                    "s3:ListBucket"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::GetAtt": [
+                        "ArtifactBucket",
+                        "Arn"
+                      ]
+                    },
+                    {
+                      "Fn::Sub": "${ArtifactBucket.Arn}/*"
+                    }
+                  ]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "kms:Decrypt",
+                    "kms:GenerateDataKey"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+                    }
+                  ],
+                  "Condition": {
+                    "StringEquals": {
+                      "kms:ViaService": {
+                        "Fn::Sub": "s3.${AWS::Region}.amazonaws.com"
+                      },
+                      "kms:CallerAccount": {
+                        "Ref": "AWS::AccountId"
+                      }
+                    },
+                    "StringLike": {
+                      "kms:EncryptionContext:aws:s3:arn": {
+                        "Fn::Sub": "${ArtifactBucket.Arn}/*"
+                      }
+                    }
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/vasa-app-build:*"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "BuildProject": {
+      "Type": "AWS::CodeBuild::Project",
+      "Properties": {
+        "Name": "vasa-app-build",
+        "ServiceRole": {
+          "Fn::GetAtt": [
+            "BuildRole",
+            "Arn"
+          ]
+        },
+        "TimeoutInMinutes": 30,
+        "ConcurrentBuildLimit": 1,
+        "Artifacts": {
+          "Type": "CODEPIPELINE"
+        },
+        "Source": {
+          "Type": "CODEPIPELINE",
+          "BuildSpec": "ci/build.yml"
+        },
+        "Environment": {
+          "Type": "LINUX_CONTAINER",
+          "ComputeType": "BUILD_GENERAL1_SMALL",
+          "Image": "aws/codebuild/standard:7.0",
+          "PrivilegedMode": false,
+          "EnvironmentVariables": []
+        },
+        "LogsConfig": {
+          "CloudWatchLogs": {
+            "Status": "ENABLED",
+            "GroupName": {
+              "Ref": "BuildLog"
+            }
+          }
+        },
+        "EncryptionKey": "alias/aws/s3"
+      }
+    },
+    "DeployLog": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/codebuild/vasa-app-deploy",
+        "RetentionInDays": 14
+      }
+    },
+    "DeployRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "codebuild.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole",
+              "Condition": {
+                "StringEquals": {
+                  "aws:SourceAccount": {
+                    "Ref": "AWS::AccountId"
+                  }
+                },
+                "ArnEquals": {
+                  "aws:SourceArn": {
+                    "Fn::Sub": "arn:${AWS::Partition}:codebuild:${AWS::Region}:${AWS::AccountId}:project/vasa-app-deploy"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "BuildArtifactsAndLogs",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "s3:GetObject",
+                    "s3:GetObjectVersion",
+                    "s3:PutObject",
+                    "s3:GetBucketLocation",
+                    "s3:GetBucketVersioning",
+                    "s3:GetBucketAcl",
+                    "s3:ListBucket"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::GetAtt": [
+                        "ArtifactBucket",
+                        "Arn"
+                      ]
+                    },
+                    {
+                      "Fn::Sub": "${ArtifactBucket.Arn}/*"
+                    }
+                  ]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "kms:Decrypt",
+                    "kms:GenerateDataKey"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+                    }
+                  ],
+                  "Condition": {
+                    "StringEquals": {
+                      "kms:ViaService": {
+                        "Fn::Sub": "s3.${AWS::Region}.amazonaws.com"
+                      },
+                      "kms:CallerAccount": {
+                        "Ref": "AWS::AccountId"
+                      }
+                    },
+                    "StringLike": {
+                      "kms:EncryptionContext:aws:s3:arn": {
+                        "Fn::Sub": "${ArtifactBucket.Arn}/*"
+                      }
+                    }
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/vasa-app-deploy:*"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "DeploymentChecksAndPackages",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "cloudformation:ListStacks",
+                    "lambda:GetAccountSettings"
+                  ],
+                  "Resource": "*",
+                  "Condition": {
+                    "StringEquals": {
+                      "aws:RequestedRegion": "ap-southeast-5"
+                    }
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "s3:GetBucketLocation",
+                    "s3:ListBucket"
+                  ],
+                  "Resource": [
+                    "arn:aws:s3:::vasa-app-packages-492213594399-ap-southeast-5"
+                  ]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "s3:GetObject",
+                    "s3:GetObjectVersion",
+                    "s3:PutObject",
+                    "s3:AbortMultipartUpload"
+                  ],
+                  "Resource": [
+                    "arn:aws:s3:::vasa-app-packages-492213594399-ap-southeast-5/*"
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "DeployProject": {
+      "Type": "AWS::CodeBuild::Project",
+      "Properties": {
+        "Name": "vasa-app-deploy",
+        "ServiceRole": {
+          "Fn::GetAtt": [
+            "DeployRole",
+            "Arn"
+          ]
+        },
+        "TimeoutInMinutes": 30,
+        "ConcurrentBuildLimit": 1,
+        "Artifacts": {
+          "Type": "CODEPIPELINE"
+        },
+        "Source": {
+          "Type": "CODEPIPELINE",
+          "BuildSpec": "ci/deploy.yml"
+        },
+        "Environment": {
+          "Type": "LINUX_CONTAINER",
+          "ComputeType": "BUILD_GENERAL1_SMALL",
+          "Image": "aws/codebuild/standard:7.0",
+          "PrivilegedMode": false,
+          "EnvironmentVariables": [
+            {
+              "Name": "DNS_SECRET_ARN",
+              "Type": "PLAINTEXT",
+              "Value": {
+                "Ref": "DnsSecretArn"
+              }
+            },
+            {
+              "Name": "PACKAGE_BUCKET",
+              "Type": "PLAINTEXT",
+              "Value": "vasa-app-packages-492213594399-ap-southeast-5"
+            }
+          ]
+        },
+        "LogsConfig": {
+          "CloudWatchLogs": {
+            "Status": "ENABLED",
+            "GroupName": {
+              "Ref": "DeployLog"
+            }
+          }
+        },
+        "EncryptionKey": "alias/aws/s3"
+      }
+    },
+    "DeployPolicy0": {
+      "Type": "AWS::IAM::ManagedPolicy",
+      "Properties": {
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "ManageEc2SwitchAndSamBootstrapStacks",
+              "Effect": "Allow",
+              "Action": [
+                "cloudformation:CreateStack",
+                "cloudformation:UpdateStack",
+                "cloudformation:DeleteStack",
+                "cloudformation:CreateChangeSet",
+                "cloudformation:DescribeChangeSet",
+                "cloudformation:ExecuteChangeSet",
+                "cloudformation:DeleteChangeSet",
+                "cloudformation:DescribeStacks",
+                "cloudformation:DescribeStackEvents",
+                "cloudformation:DescribeStackResources",
+                "cloudformation:ListStackResources",
+                "cloudformation:ListChangeSets",
+                "cloudformation:GetTemplate",
+                "cloudformation:GetTemplateSummary",
+                "cloudformation:ContinueUpdateRollback"
+              ],
+              "Resource": [
+                "arn:aws:cloudformation:ap-southeast-5:492213594399:stack/personal-ec2-switch/*",
+                "arn:aws:cloudformation:ap-southeast-5:492213594399:stack/aws-sam-cli-managed-default/*"
+              ]
+            },
+            {
+              "Sid": "AllowSamTransform",
+              "Effect": "Allow",
+              "Action": "cloudformation:CreateChangeSet",
+              "Resource": "arn:aws:cloudformation:ap-southeast-5:aws:transform/Serverless-2016-10-31"
+            },
+            {
+              "Sid": "ValidateTemplate",
+              "Effect": "Allow",
+              "Action": [
+                "cloudformation:ValidateTemplate",
+                "cloudformation:GetTemplateSummary"
+              ],
+              "Resource": "*",
+              "Condition": {
+                "StringEquals": {
+                  "aws:RequestedRegion": "ap-southeast-5"
+                }
+              }
+            }
+          ]
+        },
+        "Roles": [
+          {
+            "Ref": "DeployRole"
+          }
+        ]
+      }
+    },
+    "DeployPolicy1": {
+      "Type": "AWS::IAM::ManagedPolicy",
+      "Properties": {
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "ProjectLambda",
+              "Effect": "Allow",
+              "Action": [
+                "lambda:CreateFunction",
+                "lambda:GetFunction",
+                "lambda:GetFunctionConfiguration",
+                "lambda:UpdateFunctionCode",
+                "lambda:UpdateFunctionConfiguration",
+                "lambda:DeleteFunction",
+                "lambda:AddPermission",
+                "lambda:RemovePermission",
+                "lambda:GetPolicy",
+                "lambda:TagResource",
+                "lambda:UntagResource",
+                "lambda:ListTags",
+                "lambda:PutFunctionConcurrency",
+                "lambda:DeleteFunctionConcurrency",
+                "lambda:GetFunctionConcurrency",
+                "lambda:PutFunctionEventInvokeConfig",
+                "lambda:UpdateFunctionEventInvokeConfig",
+                "lambda:GetFunctionEventInvokeConfig",
+                "lambda:DeleteFunctionEventInvokeConfig"
+              ],
+              "Resource": [
+                "arn:aws:lambda:ap-southeast-5:492213594399:function:personal-ec2-switch-control",
+                "arn:aws:lambda:ap-southeast-5:492213594399:function:personal-ec2-switch-ddns"
+              ]
+            },
+            {
+              "Sid": "ProjectRegistry",
+              "Effect": "Allow",
+              "Action": [
+                "dynamodb:CreateTable",
+                "dynamodb:DescribeTable",
+                "dynamodb:UpdateTable",
+                "dynamodb:DeleteTable",
+                "dynamodb:DescribeTimeToLive",
+                "dynamodb:UpdateTimeToLive",
+                "dynamodb:ListTagsOfResource",
+                "dynamodb:TagResource",
+                "dynamodb:UntagResource"
+              ],
+              "Resource": [
+                "arn:aws:dynamodb:ap-southeast-5:492213594399:table/personal-ec2-switch-Registry-*"
+              ]
+            },
+            {
+              "Sid": "ProjectLogs",
+              "Effect": "Allow",
+              "Action": [
+                "logs:CreateLogGroup",
+                "logs:DeleteLogGroup",
+                "logs:PutRetentionPolicy",
+                "logs:DeleteRetentionPolicy",
+                "logs:TagLogGroup",
+                "logs:UntagLogGroup",
+                "logs:ListTagsLogGroup",
+                "logs:TagResource",
+                "logs:UntagResource",
+                "logs:ListTagsForResource"
+              ],
+              "Resource": [
+                "arn:aws:logs:ap-southeast-5:492213594399:log-group:/aws/lambda/personal-ec2-switch-*"
+              ]
+            },
+            {
+              "Sid": "ReadLogGroupMetadata",
+              "Effect": "Allow",
+              "Action": [
+                "logs:DescribeLogGroups"
+              ],
+              "Resource": "*",
+              "Condition": {
+                "StringEquals": {
+                  "aws:RequestedRegion": "ap-southeast-5"
+                }
+              }
+            },
+            {
+              "Sid": "ProjectEvents",
+              "Effect": "Allow",
+              "Action": [
+                "events:PutRule",
+                "events:DeleteRule",
+                "events:DescribeRule",
+                "events:PutTargets",
+                "events:RemoveTargets",
+                "events:ListTargetsByRule",
+                "events:EnableRule",
+                "events:DisableRule",
+                "events:TagResource",
+                "events:UntagResource",
+                "events:ListTagsForResource"
+              ],
+              "Resource": [
+                "arn:aws:events:ap-southeast-5:492213594399:rule/personal-ec2-switch-*"
+              ]
+            },
+            {
+              "Sid": "CreateNamedHttpApi",
+              "Effect": "Allow",
+              "Action": [
+                "apigateway:POST"
+              ],
+              "Resource": [
+                "arn:aws:apigateway:ap-southeast-5::/apis"
+              ],
+              "Condition": {
+                "StringEquals": {
+                  "apigateway:Request/ApiName": "personal-ec2-switch-api"
+                }
+              }
+            },
+            {
+              "Sid": "ManageRegionalHttpApis",
+              "Effect": "Allow",
+              "Action": [
+                "apigateway:GET",
+                "apigateway:POST",
+                "apigateway:PATCH",
+                "apigateway:PUT",
+                "apigateway:DELETE"
+              ],
+              "Resource": [
+                "arn:aws:apigateway:ap-southeast-5::/apis/*",
+                "arn:aws:apigateway:ap-southeast-5::/tags/*"
+              ]
+            }
+          ]
+        },
+        "Roles": [
+          {
+            "Ref": "DeployRole"
+          }
+        ]
+      }
+    },
+    "DeployPolicy2": {
+      "Type": "AWS::IAM::ManagedPolicy",
+      "Properties": {
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "ManageProjectExecutionRoles",
+              "Effect": "Allow",
+              "Action": [
+                "iam:CreateRole",
+                "iam:GetRole",
+                "iam:DeleteRole",
+                "iam:UpdateAssumeRolePolicy",
+                "iam:PutRolePolicy",
+                "iam:GetRolePolicy",
+                "iam:DeleteRolePolicy",
+                "iam:ListRolePolicies",
+                "iam:ListAttachedRolePolicies",
+                "iam:TagRole",
+                "iam:UntagRole",
+                "iam:ListRoleTags"
+              ],
+              "Resource": [
+                "arn:aws:iam::492213594399:role/personal-ec2-switch-ControlRole-*",
+                "arn:aws:iam::492213594399:role/personal-ec2-switch-DnsWorkerRole-*"
+              ]
+            },
+            {
+              "Sid": "PassProjectRolesToLambda",
+              "Effect": "Allow",
+              "Action": [
+                "iam:PassRole"
+              ],
+              "Resource": [
+                "arn:aws:iam::492213594399:role/personal-ec2-switch-ControlRole-*",
+                "arn:aws:iam::492213594399:role/personal-ec2-switch-DnsWorkerRole-*"
+              ],
+              "Condition": {
+                "StringEquals": {
+                  "iam:PassedToService": "lambda.amazonaws.com"
+                }
+              }
+            }
+          ]
+        },
+        "Roles": [
+          {
+            "Ref": "DeployRole"
+          }
+        ]
+      }
+    },
+    "PipelineRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "codepipeline.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole",
+              "Condition": {
+                "StringEquals": {
+                  "aws:SourceAccount": {
+                    "Ref": "AWS::AccountId"
+                  }
+                },
+                "ArnEquals": {
+                  "aws:SourceArn": {
+                    "Fn::Sub": "arn:${AWS::Partition}:codepipeline:${AWS::Region}:${AWS::AccountId}:vasa-app"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "PipelineStages",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "s3:GetObject",
+                    "s3:GetObjectVersion",
+                    "s3:PutObject",
+                    "s3:GetBucketLocation",
+                    "s3:GetBucketVersioning",
+                    "s3:GetBucketAcl",
+                    "s3:ListBucket"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::GetAtt": [
+                        "ArtifactBucket",
+                        "Arn"
+                      ]
+                    },
+                    {
+                      "Fn::Sub": "${ArtifactBucket.Arn}/*"
+                    }
+                  ]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "kms:Decrypt",
+                    "kms:GenerateDataKey"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+                    }
+                  ],
+                  "Condition": {
+                    "StringEquals": {
+                      "kms:ViaService": {
+                        "Fn::Sub": "s3.${AWS::Region}.amazonaws.com"
+                      },
+                      "kms:CallerAccount": {
+                        "Ref": "AWS::AccountId"
+                      }
+                    },
+                    "StringLike": {
+                      "kms:EncryptionContext:aws:s3:arn": {
+                        "Fn::Sub": "${ArtifactBucket.Arn}/*"
+                      }
+                    }
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "codeconnections:UseConnection",
+                    "codestar-connections:UseConnection"
+                  ],
+                  "Resource": {
+                    "Ref": "ConnectionArn"
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "codebuild:StartBuild",
+                    "codebuild:BatchGetBuilds"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::GetAtt": [
+                        "BuildProject",
+                        "Arn"
+                      ]
+                    },
+                    {
+                      "Fn::GetAtt": [
+                        "DeployProject",
+                        "Arn"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "Pipeline": {
+      "Type": "AWS::CodePipeline::Pipeline",
+      "DependsOn": [
+        "ArtifactBucketPolicy",
+        "DeployPolicy0",
+        "DeployPolicy1",
+        "DeployPolicy2"
+      ],
+      "Properties": {
+        "Name": "vasa-app",
+        "PipelineType": "V2",
+        "ExecutionMode": "QUEUED",
+        "RoleArn": {
+          "Fn::GetAtt": [
+            "PipelineRole",
+            "Arn"
+          ]
+        },
+        "ArtifactStore": {
+          "Type": "S3",
+          "Location": {
+            "Ref": "ArtifactBucket"
+          }
+        },
+        "Stages": [
+          {
+            "Name": "Source",
+            "Actions": [
+              {
+                "Name": "GitHub",
+                "ActionTypeId": {
+                  "Category": "Source",
+                  "Owner": "AWS",
+                  "Provider": "CodeStarSourceConnection",
+                  "Version": "1"
+                },
+                "Configuration": {
+                  "ConnectionArn": {
+                    "Ref": "ConnectionArn"
+                  },
+                  "FullRepositoryId": "anson1108/vasa-app",
+                  "BranchName": "main",
+                  "DetectChanges": "true",
+                  "OutputArtifactFormat": "CODE_ZIP"
+                },
+                "OutputArtifacts": [
+                  {
+                    "Name": "Source"
+                  }
+                ],
+                "RunOrder": 1
+              }
+            ]
+          },
+          {
+            "Name": "BuildAndTest",
+            "Actions": [
+              {
+                "Name": "Build",
+                "ActionTypeId": {
+                  "Category": "Build",
+                  "Owner": "AWS",
+                  "Provider": "CodeBuild",
+                  "Version": "1"
+                },
+                "Configuration": {
+                  "ProjectName": {
+                    "Ref": "BuildProject"
+                  }
+                },
+                "InputArtifacts": [
+                  {
+                    "Name": "Source"
+                  }
+                ],
+                "OutputArtifacts": [
+                  {
+                    "Name": "Build"
+                  }
+                ],
+                "RunOrder": 1
+              }
+            ]
+          },
+          {
+            "Name": "ApproveDeployment",
+            "Actions": [
+              {
+                "Name": "Approve",
+                "ActionTypeId": {
+                  "Category": "Approval",
+                  "Owner": "AWS",
+                  "Provider": "Manual",
+                  "Version": "1"
+                },
+                "Configuration": {
+                  "CustomData": "Confirm Lambda quota is approved and personal-ec2-switch is deployable. Approving enables EC2 control API and DNS synchronization; a running EC2 may cause an A-record update."
+                },
+                "RunOrder": 1
+              }
+            ]
+          },
+          {
+            "Name": "DeployMalaysia",
+            "Actions": [
+              {
+                "Name": "Deploy",
+                "ActionTypeId": {
+                  "Category": "Build",
+                  "Owner": "AWS",
+                  "Provider": "CodeBuild",
+                  "Version": "1"
+                },
+                "Configuration": {
+                  "ProjectName": {
+                    "Ref": "DeployProject"
+                  }
+                },
+                "InputArtifacts": [
+                  {
+                    "Name": "Build"
+                  }
+                ],
+                "OutputArtifacts": [
+                  {
+                    "Name": "Deployment"
+                  }
+                ],
+                "RunOrder": 1
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "PipelineName": {
+      "Value": {
+        "Ref": "Pipeline"
+      }
+    },
+    "ArtifactBucket": {
+      "Value": {
+        "Ref": "ArtifactBucket"
+      }
+    },
+    "BuildProject": {
+      "Value": {
+        "Ref": "BuildProject"
+      }
+    },
+    "DeployProject": {
+      "Value": {
+        "Ref": "DeployProject"
+      }
+    }
+  }
+}

@@ -41,3 +41,5 @@ SHA256: B43D0B2E006416E3B585ADAE43403A8A3321ED52C75ACEFC7E9A78CAFDBD5C88
 
 
 2026-09-27 部署校验修复：DnsSecretArn 为空时移除 Secrets Manager 权限语句，非空时仅授权该 ARN；保留启用 DDNS 必须提供 ARN 的规则。AWS SAM CLI 1.166.2 的 sam validate --lint 已通过（退出码 0），未执行云端部署。
+
+CI/CD 配置：新增 GitHub main → CodeBuild 测试构建 → 人工审批 → 马来西亚 SAM 部署。两个 CloudFormation 模板通过 SAM CLI 1.166.2 lint；两个 buildspec YAML 解析及命令类型检查通过；3 项部署保护测试通过；PowerShell 配置脚本语法通过；客户托管策略大小检查通过。未创建 AWS 流水线，未完成 GitHub CodeConnections 授权，未执行真实云构建或部署。

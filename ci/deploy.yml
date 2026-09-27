@@ -1,0 +1,20 @@
+version: 0.2
+env:
+  variables:
+    SAM_CLI_TELEMETRY: '0'
+phases:
+  install:
+    runtime-versions:
+      python: 3.12
+    commands:
+      - python3 -m venv /tmp/ec2-switch-sam
+      - /tmp/ec2-switch-sam/bin/pip install aws-sam-cli==1.166.2
+      - export PATH="/tmp/ec2-switch-sam/bin:$PATH"
+  build:
+    commands:
+      - python3 ci/deploy.py
+artifacts:
+  files:
+    - deployment-outputs.json
+    - bundle/commit.txt
+

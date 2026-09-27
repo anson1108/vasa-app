@@ -25,3 +25,7 @@ artifacts/
 !.env.example
 .aws/
 *.log
+__pycache__/
+*.pyc
+bundle/
+deployment-outputs.json
