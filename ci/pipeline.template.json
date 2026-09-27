@@ -4,6 +4,7 @@
   "Parameters": {
     "ConnectionArn": {
       "Type": "String",
+      "Default": "arn:aws:codeconnections:ap-southeast-1:492213594399:connection/175367c5-b41e-4586-8bd8-d6dbb00f9f0e",
       "AllowedPattern": "^arn:aws:(codeconnections|codestar-connections):ap-southeast-1:492213594399:connection/.+$"
     },
     "DnsSecretArn": {
