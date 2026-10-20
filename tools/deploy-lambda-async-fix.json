@@ -1,0 +1,16 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "DnsWorkerQualifiedAsyncConfiguration",
+      "Effect": "Allow",
+      "Action": [
+        "lambda:PutFunctionEventInvokeConfig",
+        "lambda:UpdateFunctionEventInvokeConfig",
+        "lambda:GetFunctionEventInvokeConfig",
+        "lambda:DeleteFunctionEventInvokeConfig"
+      ],
+      "Resource": "arn:aws:lambda:ap-southeast-5:492213594399:function:personal-ec2-switch-ddns:$LATEST"
+    }
+  ]
+}
