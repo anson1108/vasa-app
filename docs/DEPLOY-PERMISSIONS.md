@@ -27,3 +27,11 @@ JSON 解析、客户托管策略大小检查和 PowerShell 脚本语法及无写
 SAM 会先创建辅助 S3 存储，再通过 CloudFormation 创建模板中的 Lambda、HTTP API Gateway、DynamoDB、CloudWatch Logs、EventBridge 规则以及 IAM 运行角色。部署身份还必须具有这些资源的创建、读取、更新及回滚权限，以及限定到运行角色的 iam:PassRole。不能把“身份查询成功”或“CloudFormation 权限已添加”当作完整部署授权已验证。请由管理员检查现有用户/组策略补足；无需为了此错误授予整个账号的 AdministratorAccess。
 
 如果 IAM 用户没有添加策略的权限，须由账号管理员执行上述授权。只需共享错误信息或策略名称，不要共享 AccessKey 或 Secret 内容。
+
+## API Gateway stage TagResource compatibility
+
+API Gateway V2 can report an undocumented `apigateway:TagResource` authorization check when CloudFormation creates tagged stages. The regular GET/POST/PATCH/PUT/DELETE permissions do not cover this check. `tools/deploy-apigateway-stage-fix.json` permits API Gateway actions only on Malaysia stage collections and stages, not on all API Gateway resources. API IDs are generated on creation; the policy therefore covers stages of all APIs in this region. This compatibility exception also covers future stage actions and should be reviewed if the deployment role is shared.
+
+Attach this patch as an inline policy to the existing CodeBuild DeployRole. A Git push does not update the pipeline infrastructure role: update the Singapore pipeline CloudFormation stack with `ci/pipeline.template.json` for the durable fix. Do not attach it to Lambda runtime roles. Cloud deployment has not been verified by local linting.
+
+Reproduction and maintainer response: https://github.com/aws-amplify/amplify-studio/issues/889

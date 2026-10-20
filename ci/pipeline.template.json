@@ -624,6 +624,15 @@
                 "lambda:DeleteFunctionEventInvokeConfig"
               ],
               "Resource": "arn:aws:lambda:ap-southeast-5:492213594399:function:personal-ec2-switch-ddns:$LATEST"
+            },
+            {
+              "Sid": "ApiGatewayStageCreationCompatibility",
+              "Effect": "Allow",
+              "Action": "apigateway:*",
+              "Resource": [
+                "arn:aws:apigateway:ap-southeast-5::/apis/*/stages",
+                "arn:aws:apigateway:ap-southeast-5::/apis/*/stages/*"
+              ]
             }
           ]
         },

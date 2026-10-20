@@ -1,0 +1,14 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ApiGatewayStageCreationCompatibility",
+      "Effect": "Allow",
+      "Action": "apigateway:*",
+      "Resource": [
+        "arn:aws:apigateway:ap-southeast-5::/apis/*/stages",
+        "arn:aws:apigateway:ap-southeast-5::/apis/*/stages/*"
+      ]
+    }
+  ]
+}
