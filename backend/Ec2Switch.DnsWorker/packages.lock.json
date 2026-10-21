@@ -79,8 +79,8 @@
       },
       "AWSSDK.Core": {
         "type": "Transitive",
-        "resolved": "3.7.400",
-        "contentHash": "qw+WGhxcYtZ6wc1uibOu9XXLsfUpQ1r+gWa0euFnm1e9HowQbcwvKvOqQzwBNqIBO7S5IJ26T9kV/eFiwvZAkQ=="
+        "resolved": "3.7.501.1",
+        "contentHash": "VZR0LRAawpn5FQwXNPzhOO8DHhfffhBSvcSZT1d0ctcZ+kmsz3tzTArZnTQ9Haf/TNEqNLzKupHfjV2ndWAL4A=="
       },
       "AWSSDK.DynamoDBv2": {
         "type": "Transitive",
@@ -96,6 +96,14 @@
         "contentHash": "CaaLmhb1Lvji2ZsRccz7YgbZSWl+IMhnzqVbsi7dRDzCmtMBYpPfaeFSK/5n5Rl5NQiNUhG1t5snJV51Y8CktA==",
         "dependencies": {
           "AWSSDK.Core": "[3.7.400, 4.0.0)"
+        }
+      },
+      "AWSSDK.Scheduler": {
+        "type": "Transitive",
+        "resolved": "3.7.502.58",
+        "contentHash": "IBubWARt3PzcCoHCBTr8kNlb8swtJasNY44TmxTWlpvp/Pd6YxUkmTEQAsFYp6VxtJYQ7eqAZYJ9j71RL4gHsA==",
+        "dependencies": {
+          "AWSSDK.Core": "[3.7.501.1, 4.0.0)"
         }
       },
       "Microsoft.Extensions.Configuration": {
@@ -181,10 +189,10 @@
         "dependencies": {
           "AWSSDK.DynamoDBv2": "[3.7.400, )",
           "AWSSDK.EC2": "[3.7.400, )",
+          "AWSSDK.Scheduler": "[3.7.*, )",
           "Amazon.Lambda.AspNetCoreServer.Hosting": "[1.9.0, )"
         }
       }
-    },
-    "net8.0/linux-arm64": {}
+    }
   }
 }
