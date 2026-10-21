@@ -32,6 +32,15 @@
           "AWSSDK.Core": "[3.7.400, 4.0.0)"
         }
       },
+      "AWSSDK.Scheduler": {
+        "type": "Direct",
+        "requested": "[3.7.*, )",
+        "resolved": "3.7.502.58",
+        "contentHash": "IBubWARt3PzcCoHCBTr8kNlb8swtJasNY44TmxTWlpvp/Pd6YxUkmTEQAsFYp6VxtJYQ7eqAZYJ9j71RL4gHsA==",
+        "dependencies": {
+          "AWSSDK.Core": "[3.7.501.1, 4.0.0)"
+        }
+      },
       "Amazon.Lambda.APIGatewayEvents": {
         "type": "Transitive",
         "resolved": "2.7.1",
@@ -89,8 +98,8 @@
       },
       "AWSSDK.Core": {
         "type": "Transitive",
-        "resolved": "3.7.400",
-        "contentHash": "qw+WGhxcYtZ6wc1uibOu9XXLsfUpQ1r+gWa0euFnm1e9HowQbcwvKvOqQzwBNqIBO7S5IJ26T9kV/eFiwvZAkQ=="
+        "resolved": "3.7.501.1",
+        "contentHash": "VZR0LRAawpn5FQwXNPzhOO8DHhfffhBSvcSZT1d0ctcZ+kmsz3tzTArZnTQ9Haf/TNEqNLzKupHfjV2ndWAL4A=="
       },
       "Microsoft.Extensions.Configuration": {
         "type": "Transitive",
@@ -170,7 +179,6 @@
         "resolved": "4.5.0",
         "contentHash": "YrzNWduCDHhUaSRBxHxL11UkM2fD6y8hITHis4/LbQZ6vj3vdRjoH3IoPWWC9uDXK2wHIqn+b5gv1Np/VKyM1g=="
       }
-    },
-    "net8.0/linux-arm64": {}
+    }
   }
 }

@@ -20,7 +20,8 @@
       ],
       "Resource": [
         "arn:aws:iam::492213594399:role/personal-ec2-switch-ControlRole-*",
-        "arn:aws:iam::492213594399:role/personal-ec2-switch-DnsWorkerRole-*"
+        "arn:aws:iam::492213594399:role/personal-ec2-switch-DnsWorkerRole-*",
+        "arn:aws:iam::492213594399:role/personal-ec2-switch-ScheduleExecutionRole-*"
       ]
     },
     {
@@ -36,6 +37,21 @@
       "Condition": {
         "StringEquals": {
           "iam:PassedToService": "lambda.amazonaws.com"
+        }
+      }
+    },
+    {
+      "Sid": "PassSchedulerExecutionRole",
+      "Effect": "Allow",
+      "Action": [
+        "iam:PassRole"
+      ],
+      "Resource": [
+        "arn:aws:iam::492213594399:role/personal-ec2-switch-ScheduleExecutionRole-*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": "scheduler.amazonaws.com"
         }
       }
     }

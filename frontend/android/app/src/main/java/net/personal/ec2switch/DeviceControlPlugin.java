@@ -134,5 +134,64 @@ public class DeviceControlPlugin extends Plugin {
             finally { if (connection != null) connection.disconnect(); }
         });
     }
+    @PluginMethod public void scheduleRequest(PluginCall call) {
+        final String action = call.getString("action", "");
+        final String payload = call.getString("payload", "");
+        if (payload.length() > 256 || payload.isEmpty()) { call.reject("BAD_PAYLOAD"); return; }
+        if (!action.isEmpty()) { call.reject("BAD_ACTION"); return; }
+        executor.execute(() -> {
+            HttpsURLConnection connection = null;
+            try {
+                String endpoint = prefs().getString("endpoint", "");
+                if (!validEndpoint(endpoint)) { call.reject("NOT_CONFIGURED"); return; }
+                KeyStore ks = keys();
+                String id = hash(ks.getCertificate(ALIAS).getPublicKey().getEncoded());
+                String timestamp = Long.toString(System.currentTimeMillis() / 1000L);
+                byte[] random = new byte[16]; new SecureRandom().nextBytes(random);
+                String nonce = hex(random);
+                byte[] body = payload.getBytes(StandardCharsets.UTF_8);
+                String canonical = String.join("\n", "EC2SWITCH1", endpoint, "POST", "/schedule", id, timestamp, nonce, hash(body));
+                Signature signer = Signature.getInstance("SHA256withECDSA");
+                signer.initSign((PrivateKey) ks.getKey(ALIAS, null));
+                signer.update(canonical.getBytes(StandardCharsets.UTF_8));
+                String signature = Base64.encodeToString(signer.sign(), Base64.NO_WRAP);
+                connection = (HttpsURLConnection) new URL(endpoint + "/schedule").openConnection();
+                connection.setRequestMethod("POST");
+                connection.setInstanceFollowRedirects(false);
+                connection.setConnectTimeout(10000); connection.setReadTimeout(20000);
+                connection.setUseCaches(false); connection.setDoOutput(true);
+                connection.setFixedLengthStreamingMode(body.length);
+                connection.setRequestProperty("Content-Type", "application/json");
+                connection.setRequestProperty("x-device-id", id);
+                connection.setRequestProperty("x-timestamp", timestamp);
+                connection.setRequestProperty("x-nonce", nonce);
+                connection.setRequestProperty("x-signature", signature);
+                try (java.io.OutputStream output = connection.getOutputStream()) { output.write(body); }
+                int status = connection.getResponseCode();
+                InputStream stream = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
+                ByteArrayOutputStream response = new ByteArrayOutputStream();
+                if (stream != null) try (InputStream input = stream) {
+                    byte[] buffer = new byte[1024]; int count;
+                    while ((count = input.read(buffer)) != -1) {
+                        if (response.size() + count > 8192) throw new java.io.IOException("Response too large");
+                        response.write(buffer, 0, count);
+                    }
+                }
+                JSObject result = new JSObject(); result.put("status", status);
+                if (status == 200) {
+                    JSONObject json = new JSONObject(response.toString("UTF-8"));
+                    result.put("enabled", json.getBoolean("enabled"));
+                    result.put("time", json.optString("time", "23:00"));
+                    result.put("timezone", json.optString("timezone", "Asia/Kuala_Lumpur"));
+                } else {
+                    String error = status == 429 ? "THROTTLED" : "SERVICE_UNAVAILABLE";
+                    try { error = new JSONObject(response.toString("UTF-8")).optString("error", error); } catch (Exception ignored) { }
+                    result.put("error", error);
+                }
+                call.resolve(result);
+            } catch (Exception e) { call.reject("NETWORK"); }
+            finally { if (connection != null) connection.disconnect(); }
+        });
+    }
     @Override protected void handleOnDestroy() { executor.shutdownNow(); }
 }

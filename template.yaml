@@ -67,6 +67,20 @@ Resources:
       IntegrationUri: !GetAtt Control.Arn
       PayloadFormatVersion: '2.0'
       TimeoutInMillis: 20000
+  ScheduleRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref Api
+      RouteKey: 'POST /schedule'
+      AuthorizationType: NONE
+      Target: !Sub 'integrations/${ApiIntegration}'
+  ScheduleInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref Control
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${Api}/*/POST/schedule'
   ControlRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
@@ -76,7 +90,7 @@ Resources:
       Target: !Sub 'integrations/${ApiIntegration}'
   ApiStage:
     Type: AWS::ApiGatewayV2::Stage
-    DependsOn: ControlRoute
+    DependsOn: [ControlRoute, ScheduleRoute]
     Properties:
       ApiId: !Ref Api
       StageName: $default
@@ -107,9 +121,30 @@ Resources:
         Variables:
           TABLE_NAME: !Ref Registry
           INSTANCE_ID: !Ref InstanceId
+          SCHEDULE_NAME: !Sub '${AWS::StackName}-daily-stop'
+          SCHEDULE_ROLE_ARN: !GetAtt ScheduleExecutionRole.Arn
           AUDIENCE: !Sub 'https://${Api}.execute-api.${AWS::Region}.${AWS::URLSuffix}'
           DDNS_ENABLED: !Ref EnableDdns
           DNS_FQDN: !Sub '${DnsRr}.${DnsZone}'
+  ScheduleExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: scheduler.amazonaws.com}
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals: {aws:SourceAccount: !Ref 'AWS::AccountId'}
+      Policies:
+        - PolicyName: StopOnlyConfiguredInstance
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ec2:StopInstances
+                Resource: !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/${InstanceId}'
   ControlRole:
     Type: AWS::IAM::Role
     Properties:
@@ -137,6 +172,14 @@ Resources:
             - Effect: Allow
               Action: [ec2:StartInstances, ec2:StopInstances]
               Resource: !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/${InstanceId}'
+            - Effect: Allow
+              Action: [scheduler:CreateSchedule, scheduler:GetSchedule, scheduler:UpdateSchedule]
+              Resource: !Sub 'arn:${AWS::Partition}:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/default/${AWS::StackName}-daily-stop'
+            - Effect: Allow
+              Action: iam:PassRole
+              Resource: !GetAtt ScheduleExecutionRole.Arn
+              Condition:
+                StringEquals: {iam:PassedToService: scheduler.amazonaws.com}
             - Effect: Allow
               Action: [dynamodb:GetItem, dynamodb:ConditionCheckItem]
               Resource: !GetAtt Registry.Arn

@@ -1,6 +1,8 @@
 using Amazon;
 using Amazon.DynamoDBv2;
 using Amazon.EC2;
+using Amazon.Scheduler;
+using System.Text.Json;
 using Ec2Switch.Api;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -16,6 +18,10 @@ builder.Services.AddSingleton<IInstance>(sp => new AwsInstance(sp.GetRequiredSer
 builder.Services.AddSingleton(sp => new ControlService(sp.GetRequiredService<IRegistry>(), sp.GetRequiredService<IInstance>(), audience, instanceId));
 builder.Services.AddSingleton(sp => new DnsStatusReader(sp.GetRequiredService<IAmazonDynamoDB>(), sp.GetRequiredService<IAmazonEC2>(),
     table, instanceId, builder.Configuration["DNS_FQDN"] ?? "my.contoso1.asia", builder.Configuration["DDNS_ENABLED"] == "true"));
+builder.Services.AddSingleton<IAmazonScheduler>(new AmazonSchedulerClient(new AmazonSchedulerConfig { RegionEndpoint = region, MaxErrorRetry = 1 }));
+builder.Services.AddSingleton(sp => new ScheduleService(sp.GetRequiredService<IAmazonScheduler>(),
+    builder.Configuration["SCHEDULE_NAME"] ?? throw new InvalidOperationException("SCHEDULE_NAME missing"),
+    builder.Configuration["SCHEDULE_ROLE_ARN"] ?? throw new InvalidOperationException("SCHEDULE_ROLE_ARN missing"), instanceId));
 var app = builder.Build();
 app.MapPost("/control", async (HttpContext context, ControlService service, DnsStatusReader dnsReader, ILogger<Program> logger) =>
 {
@@ -42,6 +48,35 @@ app.MapPost("/control", async (HttpContext context, ControlService service, DnsS
     catch (Exception e)
     {
         logger.LogError("Control failed: {Type}; trace={Trace}", e.GetType().Name, context.TraceIdentifier);
+        return Results.Json(new { error = "SERVICE_UNAVAILABLE" }, statusCode: 503);
+    }
+});
+// Signed /schedule requests reuse registered-device ECDSA authentication and nonce replay protection.
+app.MapPost("/schedule", async (HttpContext context, ControlService control, ScheduleService schedule, ILogger<Program> logger) =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    try
+    {
+        if (context.Request.Path != "/schedule" || context.Request.QueryString.HasValue) throw new ApiException(404, "ROUTE");
+        using var body = new MemoryStream();
+        var buffer = new byte[257];
+        while (body.Length <= 256)
+        {
+            var n = await context.Request.Body.ReadAsync(buffer.AsMemory(0, 257 - (int)body.Length), context.RequestAborted);
+            if (n == 0) break;
+            body.Write(buffer, 0, n);
+        }
+        string Header(string name) => context.Request.Headers[name].ToString();
+        var signed = new SignedRequest(Header("x-device-id"), Header("x-timestamp"), Header("x-nonce"),
+            Header("x-signature"), body.ToArray());
+        await control.Authenticate(signed, "/schedule", context.RequestAborted);
+        return Results.Json(await schedule.Execute(body.ToArray(), context.RequestAborted));
+    }
+    catch (ApiException e) { return Results.Json(new { error = e.Message }, statusCode: e.Status); }
+    catch (JsonException) { return Results.Json(new { error = "BAD_JSON" }, statusCode: 400); }
+    catch (Exception e)
+    {
+        logger.LogError("Schedule failed: {Type}; trace={Trace}", e.GetType().Name, context.TraceIdentifier);
         return Results.Json(new { error = "SERVICE_UNAVAILABLE" }, statusCode: 503);
     }
 });

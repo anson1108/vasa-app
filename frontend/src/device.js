@@ -16,3 +16,11 @@ export async function request(action) {
     publicIp: demoState === 'running' ? '203.0.113.10' : null
   } };
 }
+
+// Reuses Android Keystore signing; no AWS credentials in the APK.
+export async function scheduleRequest(payload) {
+  if (!native) throw new Error('BROWSER_DEMO_ONLY');
+  const r = await device.scheduleRequest({ payload: JSON.stringify(payload) });
+  if (r.status !== 200) throw new Error(r.error || 'SERVICE_UNAVAILABLE');
+  return r;
+}

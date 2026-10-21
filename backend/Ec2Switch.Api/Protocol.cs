@@ -22,8 +22,8 @@ public interface IInstance
 public sealed class ControlService(IRegistry registry, IInstance instance, string audience, string instanceId, Func<long>? clock = null)
 {
     public static string Hex(byte[] bytes) => Convert.ToHexString(bytes).ToLowerInvariant();
-    public static string Canonical(string audience, SignedRequest r) => string.Join('\n',
-        "EC2SWITCH1", audience, "POST", "/control", r.DeviceId, r.Timestamp, r.Nonce, Hex(SHA256.HashData(r.Body)));
+    public static string Canonical(string audience, SignedRequest r, string path = "/control") => string.Join('\n',
+        "EC2SWITCH1", audience, "POST", path, r.DeviceId, r.Timestamp, r.Nonce, Hex(SHA256.HashData(r.Body)));
 
     public static ECDsa ImportKey(string publicKey)
     {
@@ -37,6 +37,28 @@ public sealed class ControlService(IRegistry registry, IInstance instance, strin
             return key;
         }
         catch { key.Dispose(); throw; }
+    }
+
+    public async Task Authenticate(SignedRequest r, string path, CancellationToken ct)
+    {
+        var now = clock?.Invoke() ?? DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        if (!Regex.IsMatch(r.DeviceId, "\\A[a-f0-9]{64}\\z") || !Regex.IsMatch(r.Timestamp, "\\A[0-9]{10}\\z")
+            || !Regex.IsMatch(r.Nonce, "\\A[a-f0-9]{32}\\z")) throw new ApiException(401, "AUTH_FORMAT");
+        if (Math.Abs(now - long.Parse(r.Timestamp)) > 120) throw new ApiException(401, "CLOCK_SKEW");
+        if (r.Body.Length is 0 or > 256) throw new ApiException(400, "BODY_SIZE");
+        var device = await registry.GetDevice(r.DeviceId, ct);
+        if (device is not { Enabled: true }) throw new ApiException(401, "DEVICE_REVOKED_OR_UNKNOWN");
+        var valid = false;
+        try
+        {
+            using var key = ImportKey(device.PublicKey);
+            if (r.Signature.Length <= 104)
+                valid = key.VerifyData(Encoding.UTF8.GetBytes(Canonical(audience, r, path)), Convert.FromBase64String(r.Signature),
+                    HashAlgorithmName.SHA256, DSASignatureFormat.Rfc3279DerSequence);
+        }
+        catch (Exception e) when (e is CryptographicException or FormatException or ArgumentException) { }
+        if (!valid) throw new ApiException(401, "BAD_SIGNATURE");
+        if (!await registry.Consume(r.DeviceId, r.Nonce, now + 600, ct)) throw new ApiException(409, "REPLAY_OR_REVOKED");
     }
 
     public async Task<ControlResult> Execute(SignedRequest r, CancellationToken ct)

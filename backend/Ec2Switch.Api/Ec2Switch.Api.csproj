@@ -10,6 +10,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Amazon.Lambda.AspNetCoreServer.Hosting" Version="1.9.0" />
+    <PackageReference Include="AWSSDK.Scheduler" Version="3.7.*" />
     <PackageReference Include="AWSSDK.EC2" Version="3.7.400" />
     <PackageReference Include="AWSSDK.DynamoDBv2" Version="3.7.400" />
   </ItemGroup>

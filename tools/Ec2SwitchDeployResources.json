@@ -231,6 +231,19 @@
         "arn:aws:apigateway:ap-southeast-5::/apis/*/stages",
         "arn:aws:apigateway:ap-southeast-5::/apis/*/stages/*"
       ]
+    },
+    {
+      "Sid": "ProjectScheduler",
+      "Effect": "Allow",
+      "Action": [
+        "scheduler:CreateSchedule",
+        "scheduler:GetSchedule",
+        "scheduler:UpdateSchedule",
+        "scheduler:DeleteSchedule"
+      ],
+      "Resource": [
+        "arn:aws:scheduler:ap-southeast-5:492213594399:schedule/default/personal-ec2-switch-daily-stop"
+      ]
     }
   ]
 }

@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { ElAlert, ElButton, ElCard, ElDescriptions, ElDescriptionsItem, ElForm, ElFormItem, ElIcon, ElInput, ElSwitch, ElTag } from 'element-plus';
 import { Loading, Refresh, Setting } from '@element-plus/icons-vue';
 import { device, native, request } from './device';
+import ScheduleSettings from './ScheduleSettings.vue';
 import { labels, canToggle, delayFor, messages, dnsFeedback } from './state.mjs';
 const state = ref('unknown'), busy = ref(false), fresh = ref(false), error = ref('');
 const last = ref('尚未刷新'), settings = ref(false), endpoint = ref(''), identity = ref(''), saved = ref(false);
@@ -114,6 +115,7 @@ onUnmounted(() => { disposed = true; clearTimeout(timer); document.removeEventLi
           show-icon :closable="false" />
       </section>
     </el-card>
+    <ScheduleSettings v-if="configured" />
     <p class="footnote">关闭开关仅停止实例，不会终止或删除实例。</p>
     <el-card class="setup" v-if="settings" shadow="never">
       <template #header><strong>一次性设备配置</strong></template><p>完成注册后，日常打开 App 无需登录。</p>
