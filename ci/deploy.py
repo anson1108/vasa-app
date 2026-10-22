@@ -23,7 +23,7 @@ def main():
     limits = aws_json('lambda', 'get-account-settings')['AccountLimit']
     print('Current Lambda concurrency:', limits.get('ConcurrentExecutions'),
           'unreserved:', limits.get('UnreservedConcurrentExecutions'))
-    secret_arn = os.environ['DNS_SECRET_ARN']
+    secret_arn = 'arn:aws:secretsmanager:ap-southeast-5:492213594399:secret:cloudflare-ddns/vasa-app-l1uoMh'
     if not secret_arn.startswith('arn:aws:secretsmanager:ap-southeast-5:'):
         raise ValueError('DNS_SECRET_ARN must be a Malaysia Secrets Manager ARN')
     subprocess.run([
@@ -33,7 +33,8 @@ def main():
         '--capabilities', 'CAPABILITY_IAM', '--no-confirm-changeset',
         '--no-fail-on-empty-changeset', '--parameter-overrides',
         'InstanceId=i-056494d14ab6b3dd0', 'EnableDdns=true',
-        'DnsZone=contoso1.asia', 'DnsRr=my', 'DnsRecordId=2103041539206785024',
+        'DnsZone=contoso1.win', 'DnsRr=my', 'DnsZoneId=1b9e1464ae2b6a4c278465161f774d06',
+        'DnsRecordId=f6ebcb53b1c70073d712fa9b7985fb58',
         f'DnsSecretArn={secret_arn}'
     ], check=True)
     output = aws_json('cloudformation', 'describe-stacks', '--stack-name', stack)

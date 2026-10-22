@@ -1,5 +1,16 @@
 <script setup>
 import { ref, onMounted } from 'vue';
+
+import {
+  ElCard,
+  ElForm,
+  ElFormItem,
+  ElSwitch,
+  ElTimePicker,
+  ElButton,
+  ElAlert
+} from 'element-plus';
+
 import { native, scheduleRequest } from './device';
 const enabled = ref(false), time = ref('23:00'), loading = ref(false), notice = ref(''), error = ref('');
 const timezone = ref('Asia/Shanghai');

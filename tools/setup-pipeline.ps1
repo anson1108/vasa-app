@@ -3,7 +3,7 @@ param(
     [Parameter(Mandatory=$true)]
     [ValidatePattern('^arn:aws:(codeconnections|codestar-connections):ap-southeast-1:492213594399:connection/.+$')]
     [string]$ConnectionArn,
-    [string]$DnsSecretArn = 'arn:aws:secretsmanager:ap-southeast-5:492213594399:secret:aliyundns-VvNFXf'
+    [string]$DnsSecretArn = 'arn:aws:secretsmanager:ap-southeast-5:492213594399:secret:cloudflare-ddns/vasa-app-l1uoMh'
 )
 $ErrorActionPreference = 'Stop'
 $env:AWS_PAGER = ''

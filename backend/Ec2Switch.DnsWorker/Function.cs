@@ -22,14 +22,15 @@ public sealed class Function
     {
         var id = Env("INSTANCE_ID");
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
-        (string Id, string Secret)? cached = null; // Per invocation, so rotated secrets take effect at next run.
-        async Task<(string Id, string Secret)> Credentials(CancellationToken ct)
+        string? cachedToken = null;
+        async Task<string> CloudflareToken(CancellationToken ct)
         {
-            if (cached.HasValue) return cached.Value;
-            var r = await Secrets.GetSecretValueAsync(new GetSecretValueRequest { SecretId = Env("DNS_SECRET_ARN") }, ct);
-            using var json = JsonDocument.Parse(r.SecretString);
-            cached = (json.RootElement.GetProperty("AccessKeyId").GetString()!, json.RootElement.GetProperty("AccessKeySecret").GetString()!);
-            return cached.Value;
+            if (cachedToken is not null) return cachedToken;
+            var response = await Secrets.GetSecretValueAsync(new GetSecretValueRequest { SecretId = Env("DNS_SECRET_ARN") }, ct);
+            using var json = JsonDocument.Parse(response.SecretString);
+            cachedToken = json.RootElement.GetProperty("CloudflareApiToken").GetString();
+            if (string.IsNullOrWhiteSpace(cachedToken)) throw new DnsSyncException("CLOUDFLARE_TOKEN_MISSING");
+            return cachedToken;
         }
         async Task Save(PublicInstance instance, string status, string error, CancellationToken ct)
         {
@@ -39,7 +40,8 @@ public sealed class Function
                 ["checkedAt"] = new() { N = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString() }, ["error"] = new() { S = error }
             } }, ct);
         }
-        var service = new SyncService(ct => PublicInstanceReader.Read(Ec2, id, ct), new AliDns(Http, Credentials, Env("DNS_RECORD_ID")), Save, Env("DNS_ZONE"), Env("DNS_RR"));
+        var dns = new CloudflareDns(Http, CloudflareToken, Env("DNS_ZONE_ID"), Env("DNS_RECORD_ID"), Env("DNS_ZONE"), Env("DNS_RR"));
+        var service = new SyncService(ct => PublicInstanceReader.Read(Ec2, id, ct), dns, Save, Env("DNS_ZONE"), Env("DNS_RR"));
         try { await service.Run(timeout.Token); }
         catch { context.Logger.LogLine("DNS sync failed; next scheduled run will retry. Inspect App sync status and configuration."); throw new Exception("DNS_SYNC_FAILED"); }
     }

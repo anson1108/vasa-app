@@ -30,11 +30,11 @@ internal static class DnsTests
         public PublicInstance Instance = new("running", "8.8.4.4", "boot1");
         public FakeDns Dns = new();
         public string Status = "", Error = "";
-        public SyncService Service => new(_ => Task.FromResult(Instance), Dns, (i,s,e,ct) => { Status=s; Error=e; return Task.CompletedTask; }, "contoso1.asia", "my");
+        public SyncService Service => new(_ => Task.FromResult(Instance), Dns, (i,s,e,ct) => { Status=s; Error=e; return Task.CompletedTask; }, "contoso1.win", "my");
     }
     sealed class FakeDns : IDnsProvider
     {
-        public DnsRecord Record = new("record1", "contoso1.asia", "my", "A", "1.1.1.1", "default", 600, "Enable");
+        public DnsRecord Record = new("record1", "contoso1.win", "my", "A", "1.1.1.1", "default", 600, "Enable");
         public int Updates, Reads;
         public bool FailRead, IgnoreWrite;
         public Action? OnRead;

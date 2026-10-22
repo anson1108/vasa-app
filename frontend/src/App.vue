@@ -102,7 +102,7 @@ onUnmounted(() => { disposed = true; clearTimeout(timer); document.removeEventLi
       <el-descriptions-item label="实例"><code>i-056494d14ab6b3dd0</code></el-descriptions-item>
     </el-descriptions></el-card>
     <el-card class="instance dns" shadow="never"><el-descriptions :column="1" size="small">
-      <el-descriptions-item label="VPN 域名">{{ dns?.domain || 'my.contoso1.asia' }}</el-descriptions-item>
+      <el-descriptions-item label="VPN 域名">{{ dns?.domain || 'my.contoso1.win' }}</el-descriptions-item>
       <el-descriptions-item v-if="fresh && dns?.publicIp" label="公网 IPv4"><code>{{ dns.publicIp }}</code></el-descriptions-item>
       </el-descriptions>
       <section class="dns-feedback" role="status" aria-live="polite" aria-atomic="true">

@@ -12,7 +12,7 @@ export async function request(action) {
   if (action === 'start') { demoState = 'pending'; setTimeout(() => { demoState = 'running'; }, 5000); }
   if (action === 'stop') { demoState = 'stopping'; setTimeout(() => { demoState = 'stopped'; }, 5000); }
   return { state: demoState, observedAt: Math.floor(Date.now() / 1000), dns: {
-    domain: 'my.contoso1.asia', status: demoState === 'running' ? 'synced' : demoState === 'pending' ? 'pending' : 'inactive',
+    domain: 'my.contoso1.win', status: demoState === 'running' ? 'synced' : demoState === 'pending' ? 'pending' : 'inactive',
     publicIp: demoState === 'running' ? '203.0.113.10' : null
   } };
 }

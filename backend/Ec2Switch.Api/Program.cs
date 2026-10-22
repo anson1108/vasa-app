@@ -17,7 +17,7 @@ builder.Services.AddSingleton<IRegistry>(sp => new AwsRegistry(sp.GetRequiredSer
 builder.Services.AddSingleton<IInstance>(sp => new AwsInstance(sp.GetRequiredService<IAmazonEC2>(), instanceId));
 builder.Services.AddSingleton(sp => new ControlService(sp.GetRequiredService<IRegistry>(), sp.GetRequiredService<IInstance>(), audience, instanceId));
 builder.Services.AddSingleton(sp => new DnsStatusReader(sp.GetRequiredService<IAmazonDynamoDB>(), sp.GetRequiredService<IAmazonEC2>(),
-    table, instanceId, builder.Configuration["DNS_FQDN"] ?? "my.contoso1.asia", builder.Configuration["DDNS_ENABLED"] == "true"));
+    table, instanceId, builder.Configuration["DNS_FQDN"] ?? "my.contoso1.win", builder.Configuration["DDNS_ENABLED"] == "true"));
 builder.Services.AddSingleton<IAmazonScheduler>(new AmazonSchedulerClient(new AmazonSchedulerConfig { RegionEndpoint = region, MaxErrorRetry = 1 }));
 builder.Services.AddSingleton(sp => new ScheduleService(sp.GetRequiredService<IAmazonScheduler>(),
     builder.Configuration["SCHEDULE_NAME"] ?? throw new InvalidOperationException("SCHEDULE_NAME missing"),
