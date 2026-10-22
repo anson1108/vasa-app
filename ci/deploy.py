@@ -23,9 +23,13 @@ def main():
     limits = aws_json('lambda', 'get-account-settings')['AccountLimit']
     print('Current Lambda concurrency:', limits.get('ConcurrentExecutions'),
           'unreserved:', limits.get('UnreservedConcurrentExecutions'))
-    secret_arn = 'arn:aws:secretsmanager:ap-southeast-5:492213594399:secret:cloudflare-ddns/vasa-app-l1uoMh'
-    if not secret_arn.startswith('arn:aws:secretsmanager:ap-southeast-5:'):
-        raise ValueError('DNS_SECRET_ARN must be a Malaysia Secrets Manager ARN')
+    secret_arn = os.environ.get('DNS_SECRET_ARN', '').strip()
+
+    if not secret_arn:
+        raise ValueError('DNS_SECRET_ARN is required')
+
+    if not secret_arn.startswith('arn:aws:secretsmanager:ap-southeast-5:492213594399:secret:'):
+        raise ValueError('DNS_SECRET_ARN must reference Secrets Manager in ap-southeast-5 and the expected AWS account')
     subprocess.run([
         'sam', 'deploy', '--template-file', 'bundle/backend/template.yaml',
         '--stack-name', stack, '--region', 'ap-southeast-5',
